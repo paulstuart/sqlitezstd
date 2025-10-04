@@ -24,7 +24,19 @@ func TestSqliteZstd(t *testing.T) {
 	RunSpecs(t, "SqliteZstd Suite")
 }
 
-const maxSize = 100_000
+const maxSize = 1_000_000
+
+// trackingResponseWriter wraps http.ResponseWriter to track bytes written
+type trackingResponseWriter struct {
+	http.ResponseWriter
+	bytesWritten int64
+}
+
+func (tw *trackingResponseWriter) Write(p []byte) (int, error) {
+	n, err := tw.ResponseWriter.Write(p)
+	tw.bytesWritten += int64(n)
+	return n, err
+}
 
 func createDatabase() string {
 	buildPath, err := os.MkdirTemp("", "")
@@ -264,5 +276,84 @@ var _ = Describe("SqliteZSTD", func() {
 		for i := range uncompressedResults {
 			Expect(compressedResults[i]).To(Equal(uncompressedResults[i]), "Row %d does not match between compressed and uncompressed databases", i)
 		}
+	})
+
+	It("uses HTTP Range headers and only downloads needed bytes", func() {
+		zstPath := createDatabase()
+		zstDir := filepath.Dir(zstPath)
+
+		// Track HTTP requests
+		var totalBytesServed int64
+		var rangeRequestCount int64
+		var mu sync.Mutex
+
+		// Get the actual file size
+		fileInfo, err := os.Stat(zstPath)
+		Expect(err).ToNot(HaveOccurred())
+		fileSize := fileInfo.Size()
+
+		// Create a custom handler that tracks requests
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Check if Range header is present
+			rangeHeader := r.Header.Get("Range")
+			if rangeHeader != "" {
+				mu.Lock()
+				rangeRequestCount++
+				mu.Unlock()
+			}
+
+			// Open the file
+			file, err := os.Open(filepath.Join(zstDir, filepath.Base(zstPath)))
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer file.Close() //nolint: errcheck
+
+			// Wrap the response writer to track bytes
+			tw := &trackingResponseWriter{
+				ResponseWriter: w,
+			}
+
+			// Use http.ServeContent which properly handles Range requests
+			http.ServeContent(tw, r, filepath.Base(zstPath), fileInfo.ModTime(), file)
+
+			// Track total bytes served
+			mu.Lock()
+			totalBytesServed += tw.bytesWritten
+			mu.Unlock()
+		})
+
+		server := httptest.NewServer(handler)
+		defer server.Close()
+
+		// Open database and perform a simple query
+		client, err := sql.Open("sqlite3", fmt.Sprintf("%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
+		Expect(err).ToNot(HaveOccurred())
+		defer client.Close() //nolint: errcheck
+
+		// Perform a simple query that should only require reading a small portion
+		// of the database (reading a single row by primary key)
+		row := client.QueryRow("SELECT id FROM entries WHERE id = 1;")
+		Expect(row.Err()).ToNot(HaveOccurred())
+
+		var id int64
+		err = row.Scan(&id)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(id).To(BeEquivalentTo(1))
+
+		mu.Lock()
+		finalBytesServed := totalBytesServed
+		finalRangeCount := rangeRequestCount
+		mu.Unlock()
+
+		// Verify Range headers were used
+		Expect(finalRangeCount).To(BeNumerically(">", 0), "Expected Range requests to be made")
+
+		// The key assertion: we should NOT download the entire file for a simple single-row query
+		// Target: download less than 50% of the file
+		percentDownloaded := float64(finalBytesServed) / float64(fileSize) * 100
+		Expect(percentDownloaded).To(BeNumerically("<", 50.0),
+			"Should download less than 50%% of file for single-row query, but downloaded %.2f%%", percentDownloaded)
 	})
 })
