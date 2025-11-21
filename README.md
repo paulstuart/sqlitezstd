@@ -1,28 +1,23 @@
-# SQLiteZSTD: Read-Only Access to Compressed SQLite Files
-
-> [!IMPORTANT]
-> A new version of this extension written in C is now available.
-> This C version offers the advantage of being usable across different
-> platforms, languages, and runtimes. It is not publicly available and is
-> provided under a one-time fee in perpetuity license with support. The original
-> Go version will remain freely available. For more information about the C
-> extension, please email jtarchie@gmail.com.
+# SQLiteZSTD: Pure Go Read-Only Access to Compressed SQLite Files
 
 ## Description
 
-SQLiteZSTD provides a tool for accessing SQLite databases compressed with
+SQLiteZSTD provides a pure Go (no CGO) solution for accessing SQLite databases compressed with
 [Zstandard seekable (zstd)](https://github.com/facebook/zstd/blob/216099a73f6ec19c246019df12a2877dada45cca/contrib/seekable_format/zstd_seekable_compression_format.md)
-in a read-only manner. Its functionality is based on the
-[SQLite3 Virtual File System (VFS) in Go](https://github.com/psanford/sqlite3vfs).
+in a read-only manner. It leverages the [ncruces/go-sqlite3](https://github.com/ncruces/go-sqlite3)
+WASM-based SQLite driver, eliminating the need for CGO while maintaining full SQLite compatibility.
 
 Please note, SQLiteZSTD is specifically designed for reading data and **does not
 support write operations**.
 
 ## Features
 
-1. Read-only access to Zstd-compressed SQLite databases.
-2. Interface through SQLite3 VFS.
-3. The compressed database is seekable, facilitating ease of access.
+1. **Pure Go implementation** - No CGO dependencies, works on all platforms supported by Go
+2. **Read-only access** to Zstandard-compressed SQLite databases
+3. **Seekable compression** - Random access to database content without full decompression
+4. **HTTP/HTTPS support** - Read compressed databases directly from web servers using Range requests
+5. **Standard database/sql interface** - Works with existing Go database code
+6. **Virtual File System (VFS)** - Custom VFS implementation for transparent decompression
 
 ## Usage
 
@@ -42,41 +37,64 @@ specific recommendations for best usage patterns.
 Below is an example of how to use SQLiteZSTD in a Go program:
 
 ```go
+package main
+
 import (
-    _ "github.com/jtarchie/sqlitezstd"
+    "context"
+    "database/sql"
+    "fmt"
+    "log"
+
+    _ "github.com/paulstuart/sqlitezstd"
 )
 
-db, err := sql.Open("sqlite3", "<path-to-your-file>?vfs=zstd")
-if err != nil {
-    panic(fmt.Sprintf("Failed to open database: %s", err))
+func main() {
+    // Open a compressed SQLite database
+    // Note: Use the file: URI scheme and ?vfs=zstd parameter
+    db, err := sql.Open("sqlite3", "file:path/to/database.sqlite.zst?vfs=zstd")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    // Set PRAGMA to use memory for temporary storage (required for read-only VFS)
+    _, err = db.Exec("PRAGMA temp_store = memory;")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Query the database
+    var count int
+    err = db.QueryRow("SELECT COUNT(*) FROM your_table").Scan(&count)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Table has %d rows\n", count)
 }
-
-// Set PRAGMA for each connection
-db.SetConnMaxLifetime(0) // Disable connection pooling
-db.SetMaxOpenConns(1)    // Allow only one open connection
-
-conn, err := db.Conn(context.Background())
-if err != nil {
-    panic(fmt.Sprintf("Failed to get connection: %s", err))
-}
-defer conn.Close()
-
-// PRAGMA's are not persisted across `database/sql` pooled connections
-// this is to _ensure_ it happens for this one.
-_, err = conn.ExecContext(context.Background(), `PRAGMA temp_store = memory;`)
-if err != nil {
-    panic(fmt.Sprintf("Failed to set PRAGMA: %s", err))
-}
-
-// Use conn for subsequent operations to ensure PRAGMA is applied
 ```
 
-In this Go code example:
+### Reading from HTTP/HTTPS
 
-- The `sql.Open()` function takes as a parameter the path to the compressed
-  SQLite database, appended with a query string with `vfs=zstd` to use the VFS.
-- Setting the `PRAGMA` ensures that the read only VFS is not used to create
-  temporary files.
+You can also read compressed databases directly from HTTP servers:
+
+```go
+// Open a compressed database from a web server
+db, err := sql.Open("sqlite3", "file:https://example.com/database.sqlite.zst?vfs=zstd")
+if err != nil {
+    log.Fatal(err)
+}
+defer db.Close()
+
+// The VFS will use HTTP Range requests to fetch only the needed data
+```
+
+### Important Notes
+
+- Always use the `file:` URI scheme in the connection string
+- Add `?vfs=zstd` to specify the Zstandard VFS
+- Set `PRAGMA temp_store = memory` to avoid temporary file creation (required for read-only VFS)
+- The database file must be compressed using the Zstandard seekable format (see compression instructions below)
 
 ## Performance
 

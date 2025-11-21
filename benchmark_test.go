@@ -15,8 +15,9 @@ import (
 	"time"
 
 	"github.com/brianvoe/gofakeit/v7"
-	_ "github.com/jtarchie/sqlitezstd"
-	_ "github.com/mattn/go-sqlite3" // ensure you import the SQLite3 driver
+	_ "github.com/paulstuart/sqlitezstd"
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/onsi/gomega/gexec"
 )
 
@@ -50,7 +51,7 @@ func setupDB(b *testing.B) (string, string) {
 
 	dbPath = filepath.Join(buildPath, "test.sqlite")
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -163,7 +164,7 @@ func setupDB(b *testing.B) (string, string) {
 func BenchmarkReadUncompressedSQLite(b *testing.B) {
 	dbPath, _ := setupDB(b)
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -187,7 +188,7 @@ func BenchmarkReadUncompressedSQLite(b *testing.B) {
 func BenchmarkReadUncompressedRtreeSQLite(b *testing.B) {
 	dbPath, _ := setupDB(b)
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -218,7 +219,7 @@ func BenchmarkReadUncompressedRtreeSQLite(b *testing.B) {
 func BenchmarkReadUncompressedSQLiteFTS5Porter(b *testing.B) {
 	dbPath, _ := setupDB(b)
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -243,7 +244,7 @@ func BenchmarkReadUncompressedSQLiteFTS5Porter(b *testing.B) {
 func BenchmarkReadCompressedSQLite(b *testing.B) {
 	_, zstPath := setupDB(b)
 
-	client, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", zstPath))
+	client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", zstPath))
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -267,7 +268,7 @@ func BenchmarkReadCompressedSQLite(b *testing.B) {
 func BenchmarkReadCompressedSQLiteFTS5Porter(b *testing.B) {
 	_, zstPath := setupDB(b)
 
-	client, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", zstPath))
+	client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", zstPath))
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -296,7 +297,7 @@ func BenchmarkReadCompressedHTTPSQLite(b *testing.B) {
 	server := httptest.NewServer(http.FileServer(http.Dir(zstDir)))
 	defer server.Close()
 
-	client, err := sql.Open("sqlite3", fmt.Sprintf("%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
+	client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
 	if err != nil {
 		b.Fatalf("Query failed: %v", err)
 	}
@@ -320,7 +321,7 @@ func BenchmarkReadCompressedHTTPSQLite(b *testing.B) {
 func BenchmarkReadCompressedRtreeSQLite(b *testing.B) {
 	_, zstPath := setupDB(b)
 
-	client, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", zstPath))
+	client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", zstPath))
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}

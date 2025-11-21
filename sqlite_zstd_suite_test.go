@@ -13,7 +13,9 @@ import (
 	"testing"
 
 	"github.com/georgysavva/scany/v2/sqlscan"
-	_ "github.com/jtarchie/sqlitezstd"
+	_ "github.com/paulstuart/sqlitezstd"
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -44,7 +46,7 @@ func createDatabase() string {
 
 	dbPath := filepath.Join(buildPath, "test.sqlite")
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	Expect(err).ToNot(HaveOccurred())
 
 	_, err = client.Exec(`
@@ -80,7 +82,7 @@ func createDatabase() string {
 
 	session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 	Expect(err).ToNot(HaveOccurred())
-	Eventually(session).Should(gexec.Exit(0))
+	Eventually(session, "30s").Should(gexec.Exit(0))
 
 	return zstPath
 }
@@ -91,7 +93,7 @@ func createComplexDatabase() (string, string) {
 
 	dbPath := filepath.Join(buildPath, "complex.sqlite")
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	Expect(err).ToNot(HaveOccurred())
 	defer client.Close() //nolint: errcheck
 
@@ -149,7 +151,7 @@ func createComplexDatabase() (string, string) {
 
 	session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 	Expect(err).ToNot(HaveOccurred())
-	Eventually(session).Should(gexec.Exit(0))
+	Eventually(session, "30s").Should(gexec.Exit(0))
 
 	return dbPath, zstPath
 }
@@ -158,7 +160,7 @@ var _ = Describe("SqliteZSTD", func() {
 	It("can read from a compressed sqlite db", func() {
 		zstPath := createDatabase()
 
-		client, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", zstPath))
+		client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", zstPath))
 		Expect(err).ToNot(HaveOccurred())
 		defer client.Close() //nolint: errcheck
 
@@ -183,7 +185,7 @@ var _ = Describe("SqliteZSTD", func() {
 				defer waiter.Done()
 				defer GinkgoRecover()
 
-				client, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", zstPath))
+				client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", zstPath))
 				Expect(err).ToNot(HaveOccurred())
 				defer client.Close() //nolint: errcheck
 
@@ -214,7 +216,7 @@ var _ = Describe("SqliteZSTD", func() {
 		server := httptest.NewServer(http.FileServer(http.Dir(zstDir)))
 		defer server.Close()
 
-		client, err := sql.Open("sqlite3", fmt.Sprintf("%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
+		client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
 		Expect(err).ToNot(HaveOccurred())
 		defer client.Close() //nolint: errcheck
 
@@ -230,11 +232,11 @@ var _ = Describe("SqliteZSTD", func() {
 	It("ensures data integrity between compressed and uncompressed databases", func() {
 		uncompressedPath, compressedPath := createComplexDatabase()
 
-		uncompressedDB, err := sql.Open("sqlite3", uncompressedPath)
+		uncompressedDB, err := sql.Open("sqlite3", "file:"+uncompressedPath)
 		Expect(err).ToNot(HaveOccurred())
 		defer uncompressedDB.Close() //nolint: errcheck
 
-		compressedDB, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", compressedPath))
+		compressedDB, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", compressedPath))
 		Expect(err).ToNot(HaveOccurred())
 		defer compressedDB.Close() //nolint: errcheck
 
@@ -245,10 +247,14 @@ var _ = Describe("SqliteZSTD", func() {
 		Expect(row.Scan(&count)).ToNot(HaveOccurred())
 		Expect(count).To(BeEquivalentTo(maxSize))
 
+		// Execute PRAGMA separately for each database
+		_, err = uncompressedDB.Exec(`PRAGMA temp_store = memory;`)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = compressedDB.Exec(`PRAGMA temp_store = memory;`)
+		Expect(err).ToNot(HaveOccurred())
+
 		query := `
-		  -- since VFS is read-only, it can not be used for files
-			-- please use this
-			PRAGMA temp_store = memory;
 			SELECT u.age, COUNT(*) as order_count, SUM(o.quantity) as total_quantity
 			FROM users u
 			JOIN orders o ON u.id = o.user_id
@@ -328,7 +334,7 @@ var _ = Describe("SqliteZSTD", func() {
 		defer server.Close()
 
 		// Open database and perform a simple query
-		client, err := sql.Open("sqlite3", fmt.Sprintf("%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
+		client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
 		Expect(err).ToNot(HaveOccurred())
 		defer client.Close() //nolint: errcheck
 

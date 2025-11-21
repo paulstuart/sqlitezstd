@@ -1,4 +1,4 @@
-module github.com/jtarchie/sqlitezstd
+module github.com/paulstuart/sqlitezstd
 
 go 1.24.4
 
@@ -8,11 +8,10 @@ require (
 	github.com/brianvoe/gofakeit/v7 v7.7.3
 	github.com/georgysavva/scany/v2 v2.1.4
 	github.com/klauspost/compress v1.18.0
-	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/ncruces/go-sqlite3 v0.30.1
 	github.com/onsi/ginkgo/v2 v2.26.0
 	github.com/onsi/gomega v1.38.2
 	github.com/psanford/httpreadat v0.1.0
-	github.com/psanford/sqlite3vfs v0.0.0-20240315230605-24e1d98cf361
 )
 
 require (
@@ -25,8 +24,10 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20251002213607-436353cc1ee6 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
+	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/schollz/progressbar/v3 v3.18.0 // indirect
+	github.com/tetratelabs/wazero v1.10.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -35,8 +36,8 @@ require (
 	golang.org/x/mod v0.28.0 // indirect
 	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.35.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/tools v0.37.0 // indirect
 )
