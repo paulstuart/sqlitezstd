@@ -15,10 +15,7 @@ import (
 	"time"
 
 	"github.com/brianvoe/gofakeit/v7"
-	_ "github.com/paulstuart/sqlitezstd"
-	_ "github.com/ncruces/go-sqlite3/driver"
-	_ "github.com/ncruces/go-sqlite3/embed"
-	"github.com/onsi/gomega/gexec"
+	_ "github.com/paulstuart/sqlitezstd/driver/ncruces"
 )
 
 // nolint: gosec
@@ -131,28 +128,35 @@ func setupDB(b *testing.B) (string, string) {
 	// and that it's already correctly set up and works.
 	zstPath = dbPath + ".zst"
 
-	command := exec.Command(
+	cmd := exec.Command(
 		"go", "run", "github.com/SaveTheRbtz/zstd-seekable-format-go/cmd/zstdseek",
 		"-f", dbPath,
 		"-o", zstPath,
 		"-c", "16:32:64",
 	)
 
-	session, err := gexec.Start(command, os.Stderr, os.Stderr)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+
+	err = cmd.Start()
 	if err != nil {
-		b.Fatalf("Failed to compress data: %v", err)
+		b.Fatalf("Failed to start compression: %v", err)
 	}
 
-	timeout := time.NewTimer(30 * time.Second)
-	defer timeout.Stop()
+	// Wait with timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
 
 	select {
-	case <-session.Exited:
-		if session.ExitCode() != 0 {
-			panic("something went wrong compressing")
+	case err := <-done:
+		if err != nil {
+			b.Fatalf("Failed to compress database: %v", err)
 		}
-	case <-timeout.C:
-		panic("something timeout wrong compressing")
+	case <-time.After(30 * time.Second):
+		_ = cmd.Process.Kill()
+		b.Fatal("zstdseek command timed out after 30 seconds")
 	}
 
 	slog.Info("compression.end")

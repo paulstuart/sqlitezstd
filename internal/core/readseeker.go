@@ -1,17 +1,5 @@
-// Copyright 2019 The Wuffs Authors.
-//
-// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
-// option. This file may not be copied, modified, or distributed
-// except according to those terms.
-//
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-
-// ----------------
-
-// Package readerat provides utilities for the io.ReaderAt type.
-package sqlitezstd
+// Package core provides shared functionality for sqlitezstd drivers.
+package core
 
 import (
 	"errors"
@@ -24,18 +12,9 @@ var (
 	errSeekToNegativePosition = errors.New("readerat: seek to negative position")
 )
 
-// ReadSeeker is an io.ReadSeeker implementation based on an io.ReaderAt (and
-// an int64 size).
-//
-// For example, an os.File is both an io.ReaderAt and an io.ReadSeeker, but its
-// io.ReadSeeker methods are not safe to use concurrently. In comparison,
-// multiple readerat.ReadSeeker values (using the same os.File as their
-// io.ReaderAt) are safe to use concurrently. Each can Read and Seek
-// independently.
-//
-// A single readerat.ReadSeeker is not safe to use concurrently.
-//
-// Do not modify its exported fields after calling any of its methods.
+// ReadSeeker is an io.ReadSeeker implementation based on an io.ReaderAt.
+// This is used to wrap HTTP range readers and other ReaderAt implementations
+// to provide seeking functionality for the Zstandard seekable reader.
 type ReadSeeker struct {
 	ReaderAt io.ReaderAt
 	Size     int64
