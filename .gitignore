@@ -38,6 +38,7 @@ dist/
 .DS_Store
 search/lunrjs
 .env*
+*.bak
 
 *.db
 *.sqlite

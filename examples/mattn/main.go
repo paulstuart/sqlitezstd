@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	dbfile  = "testdata/sample.db.zst"
+	dbfile  = "../../testdata/sample.db.zst"
 	options = "?vfs=zstd&mode=ro"
 )
 

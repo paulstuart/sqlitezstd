@@ -12,7 +12,7 @@ import (
 func main() {
 	// Open a compressed SQLite database
 	// ncruces requires the "file:" URI scheme
-	uri := "file:testdata/sample.db.zst?vfs=zstd&mode=ro"
+	uri := "file:../../testdata/sample.db.zst?vfs=zstd&mode=ro"
 	db, err := sql.Open("sqlite3", uri)
 	if err != nil {
 		log.Fatal(err)
