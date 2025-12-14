@@ -15,7 +15,7 @@ ZSTDSEEK_CHUNKING := 128:1024:8192
 BUILD_TAGS := -tags fts5
 
 # Module directories
-MODULES := internal/core driver/modernc driver/mattn driver/ncruces examples/modernc examples/mattn examples/ncruces
+MODULES := driver/modernc driver/mattn driver/ncruces examples/modernc examples/mattn examples/ncruces
 
 .PHONY: all build test bench lint format clean help compress examples tools tidy
 
@@ -49,7 +49,7 @@ test-race:
 
 # Run benchmarks
 bench:
-	go test $(BUILD_TAGS) -bench=. -benchmem -run ^$$
+	cd driver/ncruces; go test $(BUILD_TAGS) -bench=. -benchmem -run ^$$
 
 # Run linter
 lint:

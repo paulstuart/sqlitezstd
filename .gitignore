@@ -41,8 +41,8 @@ search/lunrjs
 *.bak
 
 *.db
-*.sqlite
 *.zst
+*.sqlite
 
 # Exception: allow this specific test data file (must come after *.zst)
 !testdata/ev_data.csv.zst
