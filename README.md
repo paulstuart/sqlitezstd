@@ -1,181 +1,95 @@
-# SQLiteZSTD: Multi-Driver Pure Go Read-Only Access to Compressed SQLite Files
+# SQLiteZSTD: Read-Only Access to Compressed SQLite Files
+
+> [!IMPORTANT]
+> A new version of this extension written in C is now available.
+> This C version offers the advantage of being usable across different
+> platforms, languages, and runtimes. It is not publicly available and is
+> provided under a one-time fee in perpetuity license with support. The original
+> Go version will remain freely available. For more information about the C
+> extension, please email jtarchie@gmail.com.
 
 ## Description
 
-SQLiteZSTD provides Go adapters for accessing SQLite databases compressed with
+SQLiteZSTD provides a tool for accessing SQLite databases compressed with
 [Zstandard seekable (zstd)](https://github.com/facebook/zstd/blob/216099a73f6ec19c246019df12a2877dada45cca/contrib/seekable_format/zstd_seekable_compression_format.md)
-in a read-only manner.
-
-**Multi-Driver Support**: Works with any Go SQLite driver:
-
-- **ncruces/go-sqlite3** - Pure Go WASM-based (default, no CGO)
-- **mattn/go-sqlite3** - CGO-based (traditional)
-- **modernc.org/sqlite** - Pure Go transliterated C
+in a read-only manner. Its functionality is based on the
+[SQLite3 Virtual File System (VFS) in Go](https://github.com/psanford/sqlite3vfs).
 
 Please note, SQLiteZSTD is specifically designed for reading data and **does not
 support write operations**.
 
 ## Features
 
-1. **Multiple SQLite driver support** - Works with ncruces, mattn, and modernc drivers
-2. **Pure Go options available** - No CGO dependencies required (ncruces or modernc)
-3. **Read-only access** to Zstandard-compressed SQLite databases
-4. **Seekable compression** - Random access to database content without full decompression
-5. **HTTP/HTTPS support** - Read compressed databases directly from web servers using Range requests
-6. **Standard database/sql interface** - Works with existing Go database code
-7. **Virtual File System (VFS)** - Custom VFS implementation for transparent decompression
-
-## Installation
-
-```bash
-# Default (ncruces/go-sqlite3 - pure Go, no CGO)
-go get github.com/paulstuart/sqlitezstd
-
-# Or get specific driver adapters
-go get github.com/paulstuart/sqlitezstd/driver/ncruces  # Pure Go WASM
-go get github.com/paulstuart/sqlitezstd/driver/mattn    # CGO-based
-go get github.com/paulstuart/sqlitezstd/driver/modernc  # Pure Go
-```
+1. Read-only access to Zstd-compressed SQLite databases.
+2. Interface through SQLite3 VFS.
+3. The compressed database is seekable, facilitating ease of access.
 
 ## Usage
 
-### Option 1: Default Driver (ncruces - Pure Go, no CGO)
-
-```go
-package main
-
-import (
-    "database/sql"
-    "fmt"
-    "log"
-
-    _ "github.com/paulstuart/sqlitezstd"  // Uses ncruces by default
-)
-
-func main() {
-    // Open a compressed SQLite database
-    db, err := sql.Open("sqlite3", "file:path/to/database.sqlite.zst?vfs=zstd")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer db.Close()
-
-    // Set PRAGMA to use memory for temporary storage (required for read-only VFS)
-    _, err = db.Exec("PRAGMA temp_store = memory;")
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Query the database
-    var count int
-    err = db.QueryRow("SELECT COUNT(*) FROM your_table").Scan(&count)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Printf("Table has %d rows\n", count)
-}
-```
-
-### Option 2: mattn/go-sqlite3 (CGO-based)
-
-```go
-package main
-
-import (
-    "database/sql"
-    _ "github.com/paulstuart/sqlitezstd/driver/mattn"
-)
-
-func main() {
-    // Note: mattn doesn't require "file:" prefix
-    db, err := sql.Open("sqlite3", "database.sqlite.zst?vfs=zstd")
-    // ...
-}
-```
-
-### Option 3: modernc.org/sqlite (Pure Go)
-
-```go
-package main
-
-import (
-    "database/sql"
-    _ "github.com/paulstuart/sqlitezstd/driver/modernc"
-)
-
-func main() {
-    // modernc uses "sqlite" as the driver name
-    db, err := sql.Open("sqlite", "file:database.sqlite.zst?vfs=zstd")
-    // ...
-}
-```
-
-### Reading from HTTP/HTTPS
-
-All drivers support reading from HTTP servers:
-
-```go
-// Open a compressed database from a web server
-db, err := sql.Open("sqlite3", "file:https://example.com/database.sqlite.zst?vfs=zstd")
-if err != nil {
-    log.Fatal(err)
-}
-defer db.Close()
-
-// The VFS will use HTTP Range requests to fetch only the needed data
-```
-
-### Important Notes
-
-- **ncruces driver**: Use `file:` URI scheme in connection string
-- **mattn driver**: Works with or without `file:` prefix
-- **modernc driver**: Use driver name `"sqlite"` (not `"sqlite3"`)
-- **All drivers**: Add `?vfs=zstd` to specify the Zstandard VFS
-- **All drivers**: Set `PRAGMA temp_store = memory` to avoid temporary file creation
-- The database file must be compressed using the Zstandard seekable format (see below)
-
-## Compressing Your Database
-
-Your database needs to be compressed in the seekable Zstandard format:
+Your database needs to be compressed in the seekable Zstd format. I recommend
+using this [CLI tool](github.com/SaveTheRbtz/zstd-seekable-format-go):
 
 ```bash
-go install github.com/SaveTheRbtz/zstd-seekable-format-go/cmd/zstdseek@latest
-
-zstdseek -f your_database.sqlite -o your_database.sqlite.zst
+go get -a github.com/SaveTheRbtz/zstd-seekable-format-go/...
+go run github.com/SaveTheRbtz/zstd-seekable-format-go/cmd/zstdseek \
+    -f <dbPath> \
+    -o <dbPath>.zst
 ```
 
-The CLI provides different options for compression levels and chunk sizes.
+The CLI provides different options for compression levels, but I do not have
+specific recommendations for best usage patterns.
 
-## Driver Comparison
+Below is an example of how to use SQLiteZSTD in a Go program:
 
-| Feature | ncruces | mattn | modernc |
-|---------|---------|-------|---------|
-| CGO Required | ❌ No | ✅ Yes | ❌ No |
-| Cross-compilation | ✅ Easy | ❌ Hard | ✅ Easy |
-| Performance | Good | Excellent | Good |
-| Maturity | Newer | Very Mature | Mature |
-| Binary Size | Medium | Small | Larger |
-| Platform Support | All Go platforms | CGO platforms | All Go platforms |
+```go
+import (
+    _ "github.com/jtarchie/sqlitezstd"
+)
+
+db, err := sql.Open("sqlite3", "<path-to-your-file>?vfs=zstd")
+if err != nil {
+    panic(fmt.Sprintf("Failed to open database: %s", err))
+}
+
+// Set PRAGMA for each connection
+db.SetConnMaxLifetime(0) // Disable connection pooling
+db.SetMaxOpenConns(1)    // Allow only one open connection
+
+conn, err := db.Conn(context.Background())
+if err != nil {
+    panic(fmt.Sprintf("Failed to get connection: %s", err))
+}
+defer conn.Close()
+
+// PRAGMA's are not persisted across `database/sql` pooled connections
+// this is to _ensure_ it happens for this one.
+_, err = conn.ExecContext(context.Background(), `PRAGMA temp_store = memory;`)
+if err != nil {
+    panic(fmt.Sprintf("Failed to set PRAGMA: %s", err))
+}
+
+// Use conn for subsequent operations to ensure PRAGMA is applied
+```
+
+In this Go code example:
+
+- The `sql.Open()` function takes as a parameter the path to the compressed
+  SQLite database, appended with a query string with `vfs=zstd` to use the VFS.
+- Setting the `PRAGMA` ensures that the read only VFS is not used to create
+  temporary files.
 
 ## Performance
 
-Compressed databases offer significant storage savings while maintaining good read performance.
-The seekable format allows random access without decompressing the entire file.
+Here's a simple benchmark comparing performance between reading from an
+uncompressed vs. a compressed SQLite database, involving the insertion of 10k
+records and retrieval of the `MAX` value (without an index) and FTS5.
 
-Example compression ratios:
-- Text-heavy databases: 60-80% reduction
-- Mixed content databases: 40-60% reduction
-- Already-compressed data: Minimal reduction
-
-HTTP Range request support means only the needed portions of the compressed database are
-downloaded, making it efficient for remote database access.
-
-## License
-
-See LICENSE file for details.
-
-## Credits
-
-Originally forked from [jtarchie/sqlitezstd](https://github.com/jtarchie/sqlitezstd),
-adapted to support multiple SQLite drivers.
+```
+BenchmarkReadUncompressedSQLite-4              	  159717	      7459 ns/op	     473 B/op	      15 allocs/op
+BenchmarkReadUncompressedSQLiteFTS5Porter-4    	    2478	    471685 ns/op	     450 B/op	      15 allocs/op
+BenchmarkReadUncompressedSQLiteFTS5Trigram-4   	     100	  10449792 ns/op	     542 B/op	      16 allocs/op
+BenchmarkReadCompressedSQLite-4                	  266703	      3877 ns/op	    2635 B/op	      15 allocs/op
+BenchmarkReadCompressedSQLiteFTS5Porter-4      	    2335	    487430 ns/op	   33992 B/op	      16 allocs/op
+BenchmarkReadCompressedSQLiteFTS5Trigram-4     	      48	  21235303 ns/op	45970431 B/op	     148 allocs/op
+BenchmarkReadCompressedHTTPSQLite-4            	  284820	      4341 ns/op	    3312 B/op	      15 allocs/op
+```
