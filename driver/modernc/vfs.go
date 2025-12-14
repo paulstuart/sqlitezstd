@@ -25,7 +25,7 @@ import (
 	_ "modernc.org/sqlite"
 	"modernc.org/sqlite/vfs"
 
-	"github.com/paulstuart/sqlitezstd/internal/core"
+	"github.com/paulstuart/sqlitezstd"
 )
 
 // ZstdFS implements a read-only fs.FS backed by Zstandard compressed files.
@@ -54,7 +54,7 @@ func (z *ZstdFS) Open(name string) (fs.File, error) {
 			return nil, fmt.Errorf("failed to get size: %w", err)
 		}
 
-		reader = &core.ReadSeeker{
+		reader = &sqlitezstd.ReadSeeker{
 			ReaderAt: httpRanger,
 			Size:     size,
 		}

@@ -1,4 +1,4 @@
-package sqlitezstd_test
+package ncruces
 
 import (
 	"bytes"
@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/georgysavva/scany/v2/sqlscan"
-	_ "github.com/paulstuart/sqlitezstd/driver/ncruces"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

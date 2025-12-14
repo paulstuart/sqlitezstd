@@ -25,7 +25,7 @@ import (
 	"github.com/psanford/httpreadat"
 	"github.com/psanford/sqlite3vfs"
 
-	"github.com/paulstuart/sqlitezstd/internal/core"
+	"github.com/paulstuart/sqlitezstd"
 )
 
 // ZstdVFS implements the VFS interface for Zstandard compressed databases.
@@ -70,7 +70,7 @@ func (z *ZstdVFS) Open(name string, flags sqlite3vfs.OpenFlag) (sqlite3vfs.File,
 			return nil, 0, sqlite3vfs.CantOpenError
 		}
 
-		reader = &core.ReadSeeker{
+		reader = &sqlitezstd.ReadSeeker{
 			ReaderAt: httpRanger,
 			Size:     size,
 		}

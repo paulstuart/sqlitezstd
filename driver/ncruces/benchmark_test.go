@@ -1,4 +1,4 @@
-package sqlitezstd_test
+package ncruces
 
 import (
 	"database/sql"
@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/brianvoe/gofakeit/v7"
-	_ "github.com/paulstuart/sqlitezstd/driver/ncruces"
 )
 
 // nolint: gosec

@@ -26,7 +26,7 @@ import (
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
 
-	"github.com/paulstuart/sqlitezstd/internal/core"
+	"github.com/paulstuart/sqlitezstd"
 )
 
 // ZstdVFS implements the VFS interface for Zstandard compressed databases.
@@ -71,7 +71,7 @@ func (z *ZstdVFS) Open(name string, flags vfs.OpenFlag) (vfs.File, vfs.OpenFlag,
 			return nil, 0, sqlite3.CANTOPEN
 		}
 
-		reader = &core.ReadSeeker{
+		reader = &sqlitezstd.ReadSeeker{
 			ReaderAt: httpRanger,
 			Size:     size,
 		}

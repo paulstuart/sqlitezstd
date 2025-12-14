@@ -10,7 +10,7 @@
 
 // ----------------
 
-// Package readerat provides utilities for the io.ReaderAt type.
+// Package sqlitezstd provides utilities for the io.ReaderAt type.
 package sqlitezstd
 
 import (
