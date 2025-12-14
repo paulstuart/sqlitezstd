@@ -15,9 +15,7 @@ import (
 	"time"
 
 	"github.com/brianvoe/gofakeit/v7"
-	_ "github.com/jtarchie/sqlitezstd"
-	_ "github.com/mattn/go-sqlite3" // ensure you import the SQLite3 driver
-	"github.com/onsi/gomega/gexec"
+	_ "github.com/paulstuart/sqlitezstd/driver/ncruces"
 )
 
 // nolint: gosec
@@ -50,7 +48,7 @@ func setupDB(b *testing.B) (string, string) {
 
 	dbPath = filepath.Join(buildPath, "test.sqlite")
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -130,28 +128,35 @@ func setupDB(b *testing.B) (string, string) {
 	// and that it's already correctly set up and works.
 	zstPath = dbPath + ".zst"
 
-	command := exec.Command(
+	cmd := exec.Command(
 		"go", "run", "github.com/SaveTheRbtz/zstd-seekable-format-go/cmd/zstdseek",
 		"-f", dbPath,
 		"-o", zstPath,
 		"-c", "16:32:64",
 	)
 
-	session, err := gexec.Start(command, os.Stderr, os.Stderr)
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+
+	err = cmd.Start()
 	if err != nil {
-		b.Fatalf("Failed to compress data: %v", err)
+		b.Fatalf("Failed to start compression: %v", err)
 	}
 
-	timeout := time.NewTimer(30 * time.Second)
-	defer timeout.Stop()
+	// Wait with timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
 
 	select {
-	case <-session.Exited:
-		if session.ExitCode() != 0 {
-			panic("something went wrong compressing")
+	case err := <-done:
+		if err != nil {
+			b.Fatalf("Failed to compress database: %v", err)
 		}
-	case <-timeout.C:
-		panic("something timeout wrong compressing")
+	case <-time.After(30 * time.Second):
+		_ = cmd.Process.Kill()
+		b.Fatal("zstdseek command timed out after 30 seconds")
 	}
 
 	slog.Info("compression.end")
@@ -163,7 +168,7 @@ func setupDB(b *testing.B) (string, string) {
 func BenchmarkReadUncompressedSQLite(b *testing.B) {
 	dbPath, _ := setupDB(b)
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -187,7 +192,7 @@ func BenchmarkReadUncompressedSQLite(b *testing.B) {
 func BenchmarkReadUncompressedRtreeSQLite(b *testing.B) {
 	dbPath, _ := setupDB(b)
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -218,7 +223,7 @@ func BenchmarkReadUncompressedRtreeSQLite(b *testing.B) {
 func BenchmarkReadUncompressedSQLiteFTS5Porter(b *testing.B) {
 	dbPath, _ := setupDB(b)
 
-	client, err := sql.Open("sqlite3", dbPath)
+	client, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -243,7 +248,7 @@ func BenchmarkReadUncompressedSQLiteFTS5Porter(b *testing.B) {
 func BenchmarkReadCompressedSQLite(b *testing.B) {
 	_, zstPath := setupDB(b)
 
-	client, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", zstPath))
+	client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", zstPath))
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -267,7 +272,7 @@ func BenchmarkReadCompressedSQLite(b *testing.B) {
 func BenchmarkReadCompressedSQLiteFTS5Porter(b *testing.B) {
 	_, zstPath := setupDB(b)
 
-	client, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", zstPath))
+	client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", zstPath))
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
@@ -296,7 +301,7 @@ func BenchmarkReadCompressedHTTPSQLite(b *testing.B) {
 	server := httptest.NewServer(http.FileServer(http.Dir(zstDir)))
 	defer server.Close()
 
-	client, err := sql.Open("sqlite3", fmt.Sprintf("%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
+	client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s/%s?vfs=zstd", server.URL, filepath.Base(zstPath)))
 	if err != nil {
 		b.Fatalf("Query failed: %v", err)
 	}
@@ -320,7 +325,7 @@ func BenchmarkReadCompressedHTTPSQLite(b *testing.B) {
 func BenchmarkReadCompressedRtreeSQLite(b *testing.B) {
 	_, zstPath := setupDB(b)
 
-	client, err := sql.Open("sqlite3", fmt.Sprintf("%s?vfs=zstd", zstPath))
+	client, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?vfs=zstd", zstPath))
 	if err != nil {
 		b.Fatalf("Failed to open database: %v", err)
 	}
